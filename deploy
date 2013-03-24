@@ -1,0 +1,134 @@
+#!/bin/sh
+
+environment() {
+  echo export PATH=$HOME/.rbenv/shims:/usr/local/bin:/usr/bin:/bin
+  echo export RAILS_ENV=production
+  echo export RAILS_ROOT=$HOME/current
+
+  # Set the location of SSL certs on FreeBSD
+  echo export SSL_CERT_FILE=/usr/local/share/certs/ca-root-nss.crt
+}
+
+#
+# Helper functions
+#
+step() {
+  echo "-----> $@"
+}
+
+run() {
+  "$@" 2>&1 | while read line; do
+    echo "       $line"
+  done
+}
+
+#
+# Unicorn
+#
+unicorn_start() {
+  bin/unicorn -E $RAILS_ENV -c config/unicorn.conf.rb -D
+}
+
+unicorn_stop() {
+  if test -f tmp/pids/unicorn.pid; then
+    kill $(cat tmp/pids/unicorn.pid)
+  fi
+}
+
+unicorn_restart() {
+  if test -f tmp/pids/unicorn.pid; then
+    kill -USR2 $(cat tmp/pids/unicorn.pid)
+  else
+    unicorn_stop; sleep 3; unicorn_start
+  fi
+}
+
+#
+# Deploy
+#
+deploy_prepare() {
+  mkdir -p tmp/cache/
+  mkdir -p tmp/pids/
+  mkdir -p tmp/sockets/
+  mkdir -p log/
+}
+
+deploy_update() {
+  step Resetting code from master branch...
+  run git fetch origin
+  run git reset --hard origin/master
+}
+
+deploy_bundle() {
+  step Running bundle install...
+  run bundle install --binstubs --deployment --without development test
+}
+
+deploy_config_database() {
+  step Copying database config...
+  run rm -f config/database.yml
+  run cp ../config/database.yml config/
+}
+
+deploy_config_unicorn() {
+  step Copying Unicorn config...
+  run rm -f config/unicorn.conf.rb
+  run cp ../config/unicorn.conf.rb config/
+}
+
+deploy_migrate() {
+  step Migrating...
+  run bin/rake db:migrate
+}
+
+deploy_assets_precompile() {
+  step Precompiling assets...
+  run bin/rake assets:precompile
+}
+
+deploy_restart() {
+  step Restarting...
+  run unicorn_restart
+}
+
+deploy() {
+  local starttime=$(date +%s)
+  local changed_files="$(git diff @{1} --name-only)"
+
+  deploy_prepare
+  deploy_update
+  deploy_bundle
+  deploy_config_database
+  deploy_config_unicorn
+
+  if [ "$(echo "$changed_files" | grep ^db/migrate)" ]; then
+    deploy_migrate
+  fi
+
+  if [ "$(echo "$changed_files" | grep assets)" ]; then
+    deploy_assets_precompile
+  fi
+
+  deploy_restart
+
+  local duration=$(($(date +%s) - $starttime))
+  step Deployment done in $duration seconds
+}
+
+if [ $# -eq 0 ]; then
+  echo usage: $0 command >&2
+  exit 1
+fi
+
+eval "$(environment)"
+cd $RAILS_ROOT
+
+command="$(echo "$1" | tr : _)"
+
+if type "$command" >/dev/null 2>&1; then
+  shift
+  $command "$@"
+else
+  echo unknown command: "$@" >&2
+  exit 1
+fi
