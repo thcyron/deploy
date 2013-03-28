@@ -97,7 +97,11 @@ deploy() {
 
   deploy_prepare
   deploy_update
-  deploy_bundle
+
+  if [ "$(echo "$changed_files" | grep ^Gemfile)" ]; then
+    deploy_bundle
+  fi
+
   deploy_config_database
   deploy_config_unicorn
 
