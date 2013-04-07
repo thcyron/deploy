@@ -93,10 +93,11 @@ deploy_restart() {
 
 deploy() {
   local starttime=$(date +%s)
-  local changed_files="$(git diff @{1} --name-only)"
 
   deploy_prepare
   deploy_update
+
+  local changed_files=$(git diff @{1} --name-only)
 
   if [ "$(echo "$changed_files" | grep ^Gemfile)" ]; then
     deploy_bundle
