@@ -31,7 +31,7 @@ unicorn_start() {
 
 unicorn_stop() {
   if test -f tmp/pids/unicorn.pid; then
-    kill $(cat tmp/pids/unicorn.pid)
+    kill -QUIT $(cat tmp/pids/unicorn.pid)
   fi
 }
 
