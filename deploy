@@ -26,7 +26,7 @@ run() {
 # Unicorn
 #
 unicorn_start() {
-  bin/unicorn -E $RAILS_ENV -c config/unicorn.conf.rb -D
+  bundle exec unicorn -E $RAILS_ENV -c config/unicorn.conf.rb -D
 }
 
 unicorn_stop() {
@@ -61,7 +61,7 @@ deploy_update() {
 
 deploy_bundle() {
   step Running bundle install...
-  run bundle install --binstubs --deployment --without development test
+  run bundle install --deployment --without development test
 }
 
 deploy_config_database() {
